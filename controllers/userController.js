@@ -1,4 +1,4 @@
-const User = require('../models/users'); 
+const User = require('../models/users');
 const sendEmail = require('../controllers/emailSendRegister'); 
 
 const registerUser = async (req, res) => {
@@ -47,6 +47,19 @@ const registerUser = async (req, res) => {
     }
 };
 
-module.exports = {
-    registerUser
+// Controlador para obtener todos los usuarios
+const getUsers = async (req, res) => {
+    try {
+        console.log('Iniciando obtención de usuarios...');
+        const users = await User.find(); // Intenta obtener todos los usuarios
+        console.log('Usuarios obtenidos:', users); // Log de usuarios obtenidos
+        res.status(200).json(users);
+    } catch (error) {
+        console.error('Error al obtener los usuarios:', error.message, error.stack); // Log detallado del error
+        res.status(500).json({ message: 'Error al obtener los usuarios', error: error.message });
+    }
 };
+
+module.exports = { registerUser, getUsers }; // Exporta la función getUsers
+
+
