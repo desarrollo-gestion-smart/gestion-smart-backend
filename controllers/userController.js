@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs');  // Importa bcrypt
 const User = require('../models/users');
 const sendEmail = require('../controllers/emailSendRegister'); 
 

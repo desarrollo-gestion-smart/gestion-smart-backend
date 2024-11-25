@@ -207,6 +207,11 @@ const sendMessageToUser = (to, message) => {
 };
 
 // Servidor
+const PORT = process.env.PORT || 5001;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
+
 
 app.get('/api/mercadopago/callback', authenticateJWT, async (req, res) => {
   const { code } = req.query;
@@ -271,8 +276,5 @@ app.get('/api/mercadopago/callback', authenticateJWT, async (req, res) => {
   }
 
 
-  const PORT = process.env.PORT || 5001; // Usa el puerto proporcionado por Render
-  app.listen(PORT, () => {
-    console.log(`Servidor corriendo en el puerto ${PORT}`);
-  });
+  
 });

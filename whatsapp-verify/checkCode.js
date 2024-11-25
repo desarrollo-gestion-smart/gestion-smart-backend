@@ -8,6 +8,7 @@ const User = require('../models/users');
 const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SERVICE_SID } = process.env;
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
+// Ruta para verificar el código de WhatsApp
 router.post('/:phoneNumber/:code', authenticateJWT, async (req, res) => {
     try {
         const phoneNumber = decodeURIComponent(req.params.phoneNumber);
