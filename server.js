@@ -9,7 +9,6 @@ const sendEmail = require('./controllers/emailSendRegister');
 const { registerUser, getUsers } = require('./controllers/userController');
 const { handleIncomingWhatsApp } = require('./controllers/twilioController');
 const twilio = require('twilio');
-const diacritics = require('diacritics');
 const payoneerRouter = require('./controllers/payoneer/walletVinculate');
 const {findById} = require("./models/users");
 const authenticateJWT = require('./middleware/authmiddleware');
@@ -104,9 +103,9 @@ const desencadenadoresDetalles = {
 };
 
 // Normalización de texto
-const normalizeText = (text) => {
-  return diacritics.remove(text).toLowerCase();
-};
+// const normalizeText = (text) => {
+//   return diacritics.remove(text).toLowerCase();
+// };
 
 // Webhook de WhatsApp
 app.post('/webhook', (req, res) => {
