@@ -1,2 +1,9 @@
+## paquetes de node
+
 node_modules
+
+#variables de entorno
 .env
+
+#archivos
+.txt

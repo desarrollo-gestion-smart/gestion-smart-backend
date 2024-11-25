@@ -1,40 +1,32 @@
-// Usa require() en lugar de import
+// verifyPhone.js
 const express = require('express');
-const dotenv = require('dotenv');
+const router = express.Router();
 const twilio = require('twilio');
-const cors = require('cors');
+require('dotenv').config();  // Importa y configura dotenv
 
-// Cargar variables de entorno
-dotenv.config();
+const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_SERVICE_SID } = process.env;
 
-const { 
-    TWILIO_ACCOUNT_SID,
-    TWILIO_AUTH_TOKEN,
-    TWILIO_SERVICE_SID
-} = process.env;
-
-const app = express();
-
-// Habilitar CORS
-app.use(cors());
-app.use(express.json()); // Middleware para procesar JSON
-
+// Configura tu cliente Twilio con las credenciales de las variables de entorno
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
-// Ruta de verificación de WhatsApp
-app.post('/:phoneNumber', async (req, res) => {
+router.post('/:phoneNumber', async (req, res) => {
     try {
-        const { phoneNumber } = req.params;
-        const verification = await twilioClient.verify.v2.services(TWILIO_SERVICE_SID).verifications.create({
-            to: phoneNumber,
-            channel: "whatsapp"  // Usamos SMS en lugar de WhatsApp
-        });
-        res.json({ status: verification.status });
+      const { phoneNumber } = req.params;
+    //   console.log('Número recibido en el backend:', phoneNumber);
+  
+      const verification = await twilioClient.verify.v2.services(TWILIO_SERVICE_SID).verifications.create({
+        to: phoneNumber,
+        channel: 'whatsapp'
+      });
+  
+      if (verification.status === 'pending') {
+        return res.status(200).json({ message: 'Verificación enviada exitosamente' });
+      } else {
+        return res.status(400).json({ error: 'Error al enviar la verificación' });
+      }
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: error.message });
+      console.error('Error en el servidor:', error);
+      res.status(500).json({ error: 'Error en el servidor al verificar el número' });
     }
-});
-
-// Exportamos el servicio como middleware
-module.exports = app;
+  });
+module.exports = router;
