@@ -10,10 +10,11 @@ const { registerUser, getUsers } = require('./controllers/userController');
 const { handleIncomingWhatsApp } = require('./controllers/twilioController');
 const twilio = require('twilio');
 const diacritics = require('diacritics');
-const payoneerRouter = require('./controllers/payoneer/walletVinculate');
+// const payoneerRouter = require('./controllers/payoneer/walletVinculate');
 const {findById} = require("./models/users");
 const authenticateJWT = require('./middleware/authmiddleware');
 const User = require('./models/users');
+const clientRoutes = require('./routes/clients/getClients'); // Importa las rutas
 
 // const userRoutes = require('./routes/whatsapp/users');
 // const mercadopagoRouter = require('./controllers/mercado-pago/mercadoPagoVinculate'); // Importa el router con las rutas de Mercado Pago
@@ -27,9 +28,14 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: ["https://gestion-smart.com", "http://localhost:3000","http://127.0.0.1:5001"], 
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
-    credentials: true, 
+    origin: [
+      "https://gestion-smart.com",
+      "https://gestion-smart-front-production.up.railway.app",
+      "https://gestion-smart.com/register",
+      "http://localhost:3000"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
   })
 );
 app.use(express.json());
@@ -46,14 +52,14 @@ app.use('/api/users', authRoutes);
 app.use('/api/verify', whatsappVerify);
 app.use('/api/validateCode', checkCode);
 app.post('/api/twilio/receive-whatsapp', handleIncomingWhatsApp);
+app.get('/api/users', getUsers);
+app.use('/api', clientRoutes);
+
 // endpoints para whatsapp
 
 // app.use('/user/contact', userRoutes)
 
 //endpoint para tomar los usuarios de la base de datos
-
-
-
 
 app.post('/api/send-email', async (req, res) => {
   const emailData = req.body;
@@ -69,7 +75,7 @@ app.post('/api/send-email', async (req, res) => {
 });
 
 // Integrar el servicio de Payoneer
-app.use('/api/payoneer', payoneerRouter);
+// app.use('/api/payoneer', payoneerRouter);
 // Datos iniciales para WhatsApp
 const userData = {};
 const initialTemplates = {
@@ -188,6 +194,7 @@ app.post('/webhook', (req, res) => {
   res.status(200).json({ message: 'Respuesta enviada correctamente' });
 });
 
+
 // Función para enviar mensajes a través de Twilio
 const sendMessageToUser = (to, message) => {
   const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -206,55 +213,73 @@ const sendMessageToUser = (to, message) => {
     });
 };
 
+
+
 // Servidor
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
-});
+const jwt = require("jsonwebtoken");
 
+app.get("/api/mercadopago/callback", async (req, res) => {
+  const { code, state } = req.query;
 
-app.get('/api/mercadopago/callback', authenticateJWT, async (req, res) => {
-  const { code } = req.query;
+  console.log("Callback recibido con parámetros:", { code, state });
 
-  if (!code) {
-    return res.status(400).json({ error: 'Authorization code not provided' });
+  if (!code || !state) {
+    console.error("Faltan parámetros: code o state");
+    return res.status(400).json({ error: "Faltan parámetros (code o state)" });
   }
 
-  const userId = req.user?.userId;
-
   try {
+    // Verificar y decodificar el token `state`
+    console.log("Decodificando el token `state`...");
+    const decodedState = jwt.verify(state, process.env.JWT_SECRET);
+    const userId = decodedState.userId;
+    console.log("Token `state` validado. Usuario ID:", userId);
+
+    // Solicitar el token de Mercado Pago
+    console.log("Solicitando token de Mercado Pago...");
+    console.log("Parámetros enviados a Mercado Pago:");
+    console.log({
+      grant_type: "authorization_code",
+      client_id: process.env.MP_CLIENT_ID,
+      client_secret: process.env.MP_CLIENT_SECRET,
+      redirect_uri: process.env.MP_REDIRECT_URI,
+      code,
+    });
     const response = await axios.post(
-      'https://api.mercadopago.com/oauth/token',
+      "https://api.mercadopago.com/oauth/token",
       new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: process.env.MP_CLIENT_ID,
-        client_secret: process.env.MP_CLIENT_SECRET,
-        redirect_uri: process.env.MP_REDIRECT_URI,
+        grant_type: "authorization_code",
+        client_id: "275793137258734",
+        client_secret: "xzoghtz7AINHIGA1ZOzyDBEaJYW8iXjV",
+        redirect_uri: "https://gestion-smart.com/vinculate/mercadopago/callback",
         code,
       }),
       {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
       }
     );
 
     const { access_token, refresh_token, user_id, expires_in } = response.data;
 
+    console.log("Tokens obtenidos de Mercado Pago:", response.data);
+
+    // Verificar el usuario en la base de datos
+    console.log("Verificando usuario en la base de datos...");
     const user = await User.findById(userId);
-
     if (!user) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
-    }
-    if (user.wallet?.mercadoPago?.accessToken) {
-      return res.status(400).json({ message: 'Ya tienes una billetera vinculada' });
+      console.error("Usuario no encontrado en la base de datos.");
+      return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
+    console.log("Usuario encontrado:", user.email);
+
+    // Actualizar la billetera en la base de datos
+    console.log("Actualizando la billetera del usuario...");
     await User.findByIdAndUpdate(
       userId,
       {
         $set: {
-          'wallet.mercadoPago': {
+          "wallet.mercadoPago": {
             accessToken: access_token,
             refreshToken: refresh_token,
             userId: user_id,
@@ -266,15 +291,58 @@ app.get('/api/mercadopago/callback', authenticateJWT, async (req, res) => {
       { new: true, upsert: true }
     );
 
-    res.redirect('https://gestion-smart.com/apps/wallet/vinculate?success=true');
+    console.log("Billetera vinculada exitosamente para el usuario:", userId);
+
+    res.status(200).json({
+      redirectUrl: "https://gestion-smart.com/apps/wallet/vinculate?success=true",
+    });
   } catch (error) {
-    console.error('Error al obtener el token de acceso:', error.response?.data || error.message);
+    console.error("Error en el procesamiento del callback:", error.message);
+
     res.status(500).json({
-      error: 'Error al vincular la billetera',
-      details: error.response?.data || error.message,
+      redirectUrl: "https://gestion-smart.com/apps/wallet/vinculate?success=false",
+      error: error.response?.data || error.message,
     });
   }
+});
 
 
-  
+app.get("/api/mercadopago/wallet-status", async (req, res) => {
+  console.log("Solicitud a wallet-status recibida:", req.headers);
+
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    console.error("Token de autorización faltante");
+    return res.status(401).json({ error: "Token de autorización faltante" });
+  }
+
+  try {
+    const token = authHeader.split(" ")[1];
+    console.log("Token recibido:", token);
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Token decodificado:", decoded);
+
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      console.error("Usuario no encontrado");
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    if (!user.wallet || !user.wallet.mercadoPago) {
+      console.error("Wallet no vinculada");
+      return res.status(404).json({ error: "Wallet no vinculada" });
+    }
+
+    console.log("Estado de wallet:", user.wallet.mercadoPago);
+    res.status(200).json({ walletStatus: user.wallet.mercadoPago });
+  } catch (error) {
+    console.error("Error al verificar el estado de la wallet:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+const PORT = 5001;
+app.listen(PORT, () => {
+  console.log(`Server running on ${PORT}`);
 });
